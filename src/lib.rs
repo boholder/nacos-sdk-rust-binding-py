@@ -141,4 +141,6 @@ mod config;
 pub use config::*;
 
 mod naming;
+mod nacos_sdk_def;
+
 pub use naming::*;

@@ -3,14 +3,17 @@
 use std::sync::Arc;
 
 use bincode::{deserialize, serialize};
-use pyo3::{PyAny, pyclass, PyErr, pymethods, PyObject, PyResult, Python, ToPyObject};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::types::PyBytes;
+use pyo3::{pyclass, pymethods, PyAny, PyErr, PyObject, PyResult, Python, ToPyObject};
 use serde::{Deserialize, Serialize};
+use crate::nacos_sdk_def::NamingServiceDef;
 
 /// Client api of Nacos Naming.
 #[pyclass(module = "nacos_sdk_rust_binding_py")]
+#[derive(Serialize, Deserialize)]
 pub struct NacosNamingClient {
+    #[serde(with = "NamingServiceDef")]
     inner: Arc<dyn nacos_sdk::api::naming::NamingService + Send + Sync + 'static>,
 }
 
