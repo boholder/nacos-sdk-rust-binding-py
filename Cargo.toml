@@ -22,7 +22,7 @@ pyo3 = { version = "0.20", features = ["extension-module"] }
 pyo3-asyncio = { version = "0.20", features = ["tokio-runtime"] }
 tokio = "1"
 
-nacos-sdk = { version = "0.3.5", features = ["default", "async"] }
+nacos-sdk = { version = "0.3.5", features = ["async"] }
 #nacos-sdk = { git = "https://github.com/nacos-group/nacos-sdk-rust.git", features = ["default"] }
 
 tracing-subscriber = { version = "0.3", features = ["default"] }
