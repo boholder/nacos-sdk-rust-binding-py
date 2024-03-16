@@ -1,11 +1,12 @@
 #![deny(clippy::all)]
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
-use pyo3::{PyAny, pyclass, pymethods, PyObject, PyResult, Python};
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::ffi::PyExc_RuntimeError;
-use pyo3::types::PyNone;
+use pyo3::ffi::{PyExc_RuntimeError, Py_None};
+use pyo3::types::{PyInt, PyNone, PyString};
+use pyo3::{pyclass, pymethods, PyAny, PyObject, PyResult, Python};
 
 /// Client api of Nacos Naming.
 #[pyclass]
@@ -60,22 +61,30 @@ impl NacosNamingClient {
         })
     }
 
-    // /// Register instance.
-    // /// If it fails, pay attention to err
-    // pub fn register_instance(
-    //     &self,
-    //     service_name: String,
-    //     group: String,
-    //     service_instance: NacosServiceInstance,
-    // ) -> PyResult<()> {
-    //     self.inner
-    //         .register_instance(
-    //             service_name,
-    //             Some(group),
-    //             transfer_ffi_instance_to_rust(&service_instance),
-    //         )
-    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
-    // }
+    /// Register instance.
+    /// If it fails, pay attention to err
+    pub fn register_instance(
+        &self,
+        py: Python,
+        service_name: String,
+        group: String,
+        service_instance: NacosServiceInstance,
+    ) -> PyResult<&PyAny> {
+        let call = self.inner.register_instance(
+            service_name,
+            Some(group),
+            transfer_ffi_instance_to_rust(&service_instance),
+        );
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            let resp = call.await;
+            if resp.is_ok() {
+                return Ok(None);
+            } else {
+                return Ok(Some(resp.unwrap_err().to_string()));
+            }
+        })
+    }
+
     //
     //
     //
