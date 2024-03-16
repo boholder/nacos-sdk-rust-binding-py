@@ -1,9 +1,9 @@
 #![deny(clippy::all)]
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
-use pyo3::{pyclass, pymethods, PyAny, PyErr, PyObject, PyResult, Python, ToPyObject};
-
 use std::sync::Arc;
+
+use pyo3::{pyclass, pymethods, PyObject, PyResult, Python};
+use pyo3::exceptions::PyRuntimeError;
 
 /// Client api of Nacos Config.
 #[pyclass]
@@ -54,85 +54,85 @@ impl NacosConfigClient {
         })
     }
 
-    /// Get config's content.
-    /// If it fails, pay attention to err
-    pub fn get_config(&self, data_id: String, group: String) -> PyResult<String> {
-        let resp = self.get_config_resp(data_id, group)?;
-        Ok(resp.content)
-    }
-
-    /// Get NacosConfigResponse.
-    /// If it fails, pay attention to err
-    pub fn get_config_resp(&self, data_id: String, group: String) -> PyResult<NacosConfigResponse> {
-        let config_resp = self
-            .inner
-            .get_config(data_id, group)
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
-        Ok(transfer_conf_resp(config_resp))
-    }
-
-    /// Publish config.
-    /// If it fails, pay attention to err
-    pub fn publish_config(
-        &self,
-        data_id: String,
-        group: String,
-        content: String,
-    ) -> PyResult<bool> {
-        self.inner
-            .publish_config(data_id, group, content, None)
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
-    }
-
-    /// Remove config.
-    /// If it fails, pay attention to err
-    pub fn remove_config(&self, data_id: String, group: String) -> PyResult<bool> {
-        self.inner
-            .remove_config(data_id, group)
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
-    }
-
-    /// Add NacosConfigChangeListener callback func, which listen the config change.
-    /// If it fails, pay attention to err
-    #[pyo3(signature = (data_id, group, listener))]
-    pub fn add_listener(
-        &self,
-        py: Python,
-        data_id: String,
-        group: String,
-        listener: &PyAny, // PyFunction arg: <NacosConfigResponse>
-    ) -> PyResult<()> {
-        if !listener.is_callable() {
-            return Err(PyErr::new::<PyValueError, _>(
-                "Arg `listener` must be a callable",
-            ));
-        }
-        self.inner
-            .add_listener(
-                data_id,
-                group,
-                Arc::new(NacosConfigChangeListener {
-                    func: Arc::new(listener.to_object(py)),
-                }),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
-        Ok(())
-    }
-
-    /// Remove NacosConfigChangeListener callback func, but noop....
-    /// The logic is not implemented internally, and only APIs are provided as compatibility.
-    /// Users maybe do not need it? Not removing the listener is not a big problem, Sorry!
-    #[pyo3(signature = (data_id, group, listener))]
-    #[allow(unused_variables)]
-    pub fn remove_listener(
-        &self,
-        py: Python,
-        data_id: String,
-        group: String,
-        listener: &PyAny, // PyFunction arg: <NacosConfigResponse>
-    ) -> PyResult<()> {
-        Ok(())
-    }
+    // /// Get config's content.
+    // /// If it fails, pay attention to err
+    // pub fn get_config(&self, data_id: String, group: String) -> PyResult<String> {
+    //     let resp = self.get_config_resp(data_id, group)?;
+    //     Ok(resp.content)
+    // }
+    //
+    // /// Get NacosConfigResponse.
+    // /// If it fails, pay attention to err
+    // pub fn get_config_resp(&self, data_id: String, group: String) -> PyResult<NacosConfigResponse> {
+    //     let config_resp = self
+    //         .inner
+    //         .get_config(data_id, group)
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
+    //     Ok(transfer_conf_resp(config_resp))
+    // }
+    //
+    // /// Publish config.
+    // /// If it fails, pay attention to err
+    // pub fn publish_config(
+    //     &self,
+    //     data_id: String,
+    //     group: String,
+    //     content: String,
+    // ) -> PyResult<bool> {
+    //     self.inner
+    //         .publish_config(data_id, group, content, None)
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
+    // }
+    //
+    // /// Remove config.
+    // /// If it fails, pay attention to err
+    // pub fn remove_config(&self, data_id: String, group: String) -> PyResult<bool> {
+    //     self.inner
+    //         .remove_config(data_id, group)
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
+    // }
+    //
+    // /// Add NacosConfigChangeListener callback func, which listen the config change.
+    // /// If it fails, pay attention to err
+    // #[pyo3(signature = (data_id, group, listener))]
+    // pub fn add_listener(
+    //     &self,
+    //     py: Python,
+    //     data_id: String,
+    //     group: String,
+    //     listener: &PyAny, // PyFunction arg: <NacosConfigResponse>
+    // ) -> PyResult<()> {
+    //     if !listener.is_callable() {
+    //         return Err(PyErr::new::<PyValueError, _>(
+    //             "Arg `listener` must be a callable",
+    //         ));
+    //     }
+    //     self.inner
+    //         .add_listener(
+    //             data_id,
+    //             group,
+    //             Arc::new(NacosConfigChangeListener {
+    //                 func: Arc::new(listener.to_object(py)),
+    //             }),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
+    //     Ok(())
+    // }
+    //
+    // /// Remove NacosConfigChangeListener callback func, but noop....
+    // /// The logic is not implemented internally, and only APIs are provided as compatibility.
+    // /// Users maybe do not need it? Not removing the listener is not a big problem, Sorry!
+    // #[pyo3(signature = (data_id, group, listener))]
+    // #[allow(unused_variables)]
+    // pub fn remove_listener(
+    //     &self,
+    //     py: Python,
+    //     data_id: String,
+    //     group: String,
+    //     listener: &PyAny, // PyFunction arg: <NacosConfigResponse>
+    // ) -> PyResult<()> {
+    //     Ok(())
+    // }
 }
 
 #[pyclass]

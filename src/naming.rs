@@ -1,9 +1,11 @@
 #![deny(clippy::all)]
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
-use pyo3::{pyclass, pymethods, PyAny, PyErr, PyObject, PyResult, Python, ToPyObject};
-
 use std::sync::Arc;
+
+use pyo3::{PyAny, pyclass, pymethods, PyObject, PyResult, Python};
+use pyo3::exceptions::PyRuntimeError;
+use pyo3::ffi::PyExc_RuntimeError;
+use pyo3::types::PyNone;
 
 /// Client api of Nacos Naming.
 #[pyclass]
@@ -58,176 +60,178 @@ impl NacosNamingClient {
         })
     }
 
-    /// Register instance.
-    /// If it fails, pay attention to err
-    pub fn register_instance(
-        &self,
-        service_name: String,
-        group: String,
-        service_instance: NacosServiceInstance,
-    ) -> PyResult<()> {
-        self.inner
-            .register_instance(
-                service_name,
-                Some(group),
-                transfer_ffi_instance_to_rust(&service_instance),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
-    }
-
-    /// Deregister instance.
-    /// If it fails, pay attention to err
-    pub fn deregister_instance(
-        &self,
-        service_name: String,
-        group: String,
-        service_instance: NacosServiceInstance,
-    ) -> PyResult<()> {
-        self.inner
-            .deregister_instance(
-                service_name,
-                Some(group),
-                transfer_ffi_instance_to_rust(&service_instance),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
-    }
-
-    /// Batch register instance, improve interaction efficiency.
-    /// If it fails, pay attention to err
-    pub fn batch_register_instance(
-        &self,
-        service_name: String,
-        group: String,
-        service_instances: Vec<NacosServiceInstance>,
-    ) -> PyResult<()> {
-        let rust_instances = service_instances
-            .iter()
-            .map(transfer_ffi_instance_to_rust)
-            .collect();
-
-        self.inner
-            .batch_register_instance(service_name, Some(group), rust_instances)
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
-    }
-
-    /// Get all instances by service and group. default cluster=[], subscribe=true.
-    /// If it fails, pay attention to err
-    pub fn get_all_instances(
-        &self,
-        service_name: String,
-        group: String,
-        clusters: Option<Vec<String>>,
-        subscribe: Option<bool>,
-    ) -> PyResult<Vec<NacosServiceInstance>> {
-        let rust_instances = self
-            .inner
-            .get_all_instances(
-                service_name,
-                Some(group),
-                clusters.unwrap_or_default(),
-                subscribe.unwrap_or(true),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
-
-        Ok(rust_instances
-            .iter()
-            .map(transfer_rust_instance_to_ffi)
-            .collect())
-    }
-
-    /// Select instances whether healthy or not. default cluster=[], subscribe=true, healthy=true.
-    /// If it fails, pay attention to err
-    pub fn select_instances(
-        &self,
-        service_name: String,
-        group: String,
-        clusters: Option<Vec<String>>,
-        subscribe: Option<bool>,
-        healthy: Option<bool>,
-    ) -> PyResult<Vec<NacosServiceInstance>> {
-        let rust_instances = self
-            .inner
-            .select_instances(
-                service_name,
-                Some(group),
-                clusters.unwrap_or_default(),
-                subscribe.unwrap_or(true),
-                healthy.unwrap_or(true),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
-
-        Ok(rust_instances
-            .iter()
-            .map(transfer_rust_instance_to_ffi)
-            .collect())
-    }
-
-    /// Select one healthy instance. default cluster=[], subscribe=true.
-    /// If it fails, pay attention to err
-    pub fn select_one_healthy_instance(
-        &self,
-        service_name: String,
-        group: String,
-        clusters: Option<Vec<String>>,
-        subscribe: Option<bool>,
-    ) -> PyResult<NacosServiceInstance> {
-        let rust_instance = self
-            .inner
-            .select_one_healthy_instance(
-                service_name,
-                Some(group),
-                clusters.unwrap_or_default(),
-                subscribe.unwrap_or(true),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
-
-        Ok(transfer_rust_instance_to_ffi(&rust_instance))
-    }
-
-    /// Add NacosNamingEventListener callback func, which listen the instance change.
-    /// If it fails, pay attention to err
-    #[pyo3(signature = (service_name, group, clusters, listener))]
-    pub fn subscribe(
-        &self,
-        py: Python,
-        service_name: String,
-        group: String,
-        clusters: Option<Vec<String>>,
-        listener: &PyAny, // PyFunction arg: Vec<NacosServiceInstance>
-    ) -> PyResult<()> {
-        if !listener.is_callable() {
-            return Err(PyErr::new::<PyValueError, _>(
-                "Arg `listener` must be a callable",
-            ));
-        }
-        self.inner
-            .subscribe(
-                service_name,
-                Some(group),
-                clusters.unwrap_or_default(),
-                Arc::new(NacosNamingEventListener {
-                    func: Arc::new(listener.to_object(py)),
-                }),
-            )
-            .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
-        Ok(())
-    }
-
-    /// Remove NacosNamingEventListener callback func, but noop....
-    /// The logic is not implemented internally, and only APIs are provided as compatibility.
-    /// Users maybe do not need it? Not removing the subscription is not a big problem, Sorry!
-    #[pyo3(signature = (service_name, group, clusters, listener))]
-    #[allow(unused_variables)]
-    pub fn un_subscribe(
-        &self,
-        py: Python,
-        service_name: String,
-        group: String,
-        clusters: Option<Vec<String>>,
-        listener: &PyAny, // PyFunction arg: Vec<NacosServiceInstance>
-    ) -> PyResult<()> {
-        Ok(())
-    }
+    // /// Register instance.
+    // /// If it fails, pay attention to err
+    // pub fn register_instance(
+    //     &self,
+    //     service_name: String,
+    //     group: String,
+    //     service_instance: NacosServiceInstance,
+    // ) -> PyResult<()> {
+    //     self.inner
+    //         .register_instance(
+    //             service_name,
+    //             Some(group),
+    //             transfer_ffi_instance_to_rust(&service_instance),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
+    // }
+    //
+    //
+    //
+    // /// Deregister instance.
+    // /// If it fails, pay attention to err
+    // pub fn deregister_instance(
+    //     &self,
+    //     service_name: String,
+    //     group: String,
+    //     service_instance: NacosServiceInstance,
+    // ) -> PyResult<()> {
+    //     self.inner
+    //         .deregister_instance(
+    //             service_name,
+    //             Some(group),
+    //             transfer_ffi_instance_to_rust(&service_instance),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
+    // }
+    //
+    // /// Batch register instance, improve interaction efficiency.
+    // /// If it fails, pay attention to err
+    // pub fn batch_register_instance(
+    //     &self,
+    //     service_name: String,
+    //     group: String,
+    //     service_instances: Vec<NacosServiceInstance>,
+    // ) -> PyResult<()> {
+    //     let rust_instances = service_instances
+    //         .iter()
+    //         .map(transfer_ffi_instance_to_rust)
+    //         .collect();
+    //
+    //     self.inner
+    //         .batch_register_instance(service_name, Some(group), rust_instances)
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))
+    // }
+    //
+    // /// Get all instances by service and group. default cluster=[], subscribe=true.
+    // /// If it fails, pay attention to err
+    // pub fn get_all_instances(
+    //     &self,
+    //     service_name: String,
+    //     group: String,
+    //     clusters: Option<Vec<String>>,
+    //     subscribe: Option<bool>,
+    // ) -> PyResult<Vec<NacosServiceInstance>> {
+    //     let rust_instances = self
+    //         .inner
+    //         .get_all_instances(
+    //             service_name,
+    //             Some(group),
+    //             clusters.unwrap_or_default(),
+    //             subscribe.unwrap_or(true),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
+    //
+    //     Ok(rust_instances
+    //         .iter()
+    //         .map(transfer_rust_instance_to_ffi)
+    //         .collect())
+    // }
+    //
+    // /// Select instances whether healthy or not. default cluster=[], subscribe=true, healthy=true.
+    // /// If it fails, pay attention to err
+    // pub fn select_instances(
+    //     &self,
+    //     service_name: String,
+    //     group: String,
+    //     clusters: Option<Vec<String>>,
+    //     subscribe: Option<bool>,
+    //     healthy: Option<bool>,
+    // ) -> PyResult<Vec<NacosServiceInstance>> {
+    //     let rust_instances = self
+    //         .inner
+    //         .select_instances(
+    //             service_name,
+    //             Some(group),
+    //             clusters.unwrap_or_default(),
+    //             subscribe.unwrap_or(true),
+    //             healthy.unwrap_or(true),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
+    //
+    //     Ok(rust_instances
+    //         .iter()
+    //         .map(transfer_rust_instance_to_ffi)
+    //         .collect())
+    // }
+    //
+    // /// Select one healthy instance. default cluster=[], subscribe=true.
+    // /// If it fails, pay attention to err
+    // pub fn select_one_healthy_instance(
+    //     &self,
+    //     service_name: String,
+    //     group: String,
+    //     clusters: Option<Vec<String>>,
+    //     subscribe: Option<bool>,
+    // ) -> PyResult<NacosServiceInstance> {
+    //     let rust_instance = self
+    //         .inner
+    //         .select_one_healthy_instance(
+    //             service_name,
+    //             Some(group),
+    //             clusters.unwrap_or_default(),
+    //             subscribe.unwrap_or(true),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
+    //
+    //     Ok(transfer_rust_instance_to_ffi(&rust_instance))
+    // }
+    //
+    // /// Add NacosNamingEventListener callback func, which listen the instance change.
+    // /// If it fails, pay attention to err
+    // #[pyo3(signature = (service_name, group, clusters, listener))]
+    // pub fn subscribe(
+    //     &self,
+    //     py: Python,
+    //     service_name: String,
+    //     group: String,
+    //     clusters: Option<Vec<String>>,
+    //     listener: &PyAny, // PyFunction arg: Vec<NacosServiceInstance>
+    // ) -> PyResult<()> {
+    //     if !listener.is_callable() {
+    //         return Err(PyErr::new::<PyValueError, _>(
+    //             "Arg `listener` must be a callable",
+    //         ));
+    //     }
+    //     self.inner
+    //         .subscribe(
+    //             service_name,
+    //             Some(group),
+    //             clusters.unwrap_or_default(),
+    //             Arc::new(NacosNamingEventListener {
+    //                 func: Arc::new(listener.to_object(py)),
+    //             }),
+    //         )
+    //         .map_err(|nacos_err| PyRuntimeError::new_err(format!("{:?}", &nacos_err)))?;
+    //     Ok(())
+    // }
+    //
+    // /// Remove NacosNamingEventListener callback func, but noop....
+    // /// The logic is not implemented internally, and only APIs are provided as compatibility.
+    // /// Users maybe do not need it? Not removing the subscription is not a big problem, Sorry!
+    // #[pyo3(signature = (service_name, group, clusters, listener))]
+    // #[allow(unused_variables)]
+    // pub fn un_subscribe(
+    //     &self,
+    //     py: Python,
+    //     service_name: String,
+    //     group: String,
+    //     clusters: Option<Vec<String>>,
+    //     listener: &PyAny, // PyFunction arg: Vec<NacosServiceInstance>
+    // ) -> PyResult<()> {
+    //     Ok(())
+    // }
 }
 
 pub struct NacosNamingEventListener {
